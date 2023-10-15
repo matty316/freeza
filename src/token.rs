@@ -1,3 +1,5 @@
+use std::clone;
+
 #[derive(Debug, PartialEq, Clone)]
 pub(crate) enum TokenType {
     Ident,
@@ -32,6 +34,7 @@ pub(crate) enum TokenType {
     Eof
 }
 
+#[derive(Clone)]
 pub(crate) struct Token {
     pub(crate) token_type: TokenType,
     pub(crate) literal: String,

@@ -1,7 +1,7 @@
 use crate::token::*;
 use std::collections::HashMap;
 
-struct Lexer {
+pub(crate)struct Lexer {
     input: Vec<u8>,
     position: usize,
     read_position: usize,
@@ -10,7 +10,7 @@ struct Lexer {
 }
 
 impl Lexer {
-    fn new(input: String) -> Self {
+    pub(crate)fn new(input: String) -> Self {
         let mut l = Lexer {
             input: input.as_bytes().to_vec(),
             position: 0,
@@ -23,7 +23,7 @@ impl Lexer {
         return l
     }
 
-    fn next_token(&mut self) -> Token {
+    pub(crate)fn next_token(&mut self) -> Token {
         let tok: Token;
 
         self.skip_whitespace();
