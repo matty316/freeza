@@ -1,27 +1,27 @@
 use crate::token::*;
 
-trait Node {
+pub(crate) trait Node {
     fn string(&self) -> String;
 }
 
-trait Stmt: Node {
+pub(crate) trait Stmt: Node {
 }
 
-trait Expr: Node {
+pub(crate) trait Expr: Node {
 }
 
 pub(crate)struct Program {
-    stmts: Vec<Box<dyn Stmt>>,
+    pub(crate) stmts: Vec<Box<dyn Stmt>>,
 }
 
 impl Program {
-    pub(crate)fn new() -> Program {
+    pub(crate) fn new() -> Program {
         Program {
             stmts: vec![]
         }
     }
 
-    fn string(&self) -> String {
+    pub(crate) fn string(&self) -> String {
         let mut string = "".to_string();
         for stmt in &self.stmts {
             string += &stmt.string()
@@ -30,17 +30,17 @@ impl Program {
     }
 }
 
-struct LetStmt {
-    token: Token,
-    name: Identifier,
-    value: dyn Expr,
+pub(crate) struct LetStmt {
+    pub(crate) token: Token,
+    pub(crate) name: Identifier,
+    pub(crate) value: dyn Expr,
 }
 
 impl Node for LetStmt {
     fn string(&self) -> String { format!("let {} = {}", self.name.string(), self.value.string())}
 }
 
-struct Identifier {
+pub(crate) struct Identifier {
     token: Token,
     value: String,
 }

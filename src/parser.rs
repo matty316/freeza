@@ -4,19 +4,22 @@ use crate::lexer::*;
 
 struct Parser {
     lexer: Lexer,
-    current_token: Token,
-    peek_token: Token,
     errors: Vec<String>,
+    current_token: usize,
+    peek_token: usize,
 }
 
 impl Parser {
-    pub(crate)fn new(&self, l: Lexer) -> Self {
+    pub(crate)fn new(l: Lexer) -> Self {
         let p = Parser {
             lexer: l,
-            current_token: Token { token_type: TokenType::Eof, literal: "".to_string(), line: 1 },
-            peek_token: Token { token_type: TokenType::Eof, literal: "".to_string(), line: 1 },
             errors: vec![],
+            current_token: 0,
+            peek_token: 1,
         };
+
+        let mut ct = l.next_token(ch, position, read_position, line);
+        p.next_token(current_token, peek_token, ch, position, read_position, line);
 
         return p;
     }
@@ -27,9 +30,9 @@ impl Parser {
         return program;
     }
 
-    fn next_token(&mut self) {
-        self.current_token = self.peek_token.clone();
-        self.peek_token = self.lexer.next_token();
+    fn next_token(&self, current_token: &mut Token, peek_token: &mut Token, ch: &mut u8, position: &mut usize, read_position: &mut usize, line: &mut u32) {
+        *current_token = peek_token.clone();
+        *peek_token = self.lexer.next_token(ch, position, read_position, line)
     }
 }
 
@@ -53,10 +56,15 @@ mod tests {
         let program = p.parse();
 
         let exp: Vec<(&str, Box<dyn Any>)> = vec![
-            ("string", "string"),
-            ("num", 1),
-            ("num2", 10.2),
-            ("condition", true),
+            ("string", Box::new("string")),
+            ("num", Box::new(1)),
+            ("num2", Box::new(10.2)),
+            ("condition", Box::new(true)),
         ];
+
+        for (i, e) in exp.iter().enumerate() {
+            let stmt = &program.stmts[i];
+            assert_eq!(e.0, &stmt.string())
+        }
     }
 }
