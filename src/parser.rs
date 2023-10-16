@@ -2,15 +2,15 @@ use crate::token::*;
 use crate::ast::*;
 use crate::lexer::*;
 
-struct Parser<'a> {
-    lexer: &'a mut Lexer,
+struct Parser {
+    lexer: Lexer,
     current_token: Token,
     peek_token: Token,
     errors: Vec<String>,
 }
 
-impl<'a> Parser<'a> {
-    pub(crate)fn new(&self, l: &'a mut Lexer) -> Self {
+impl Parser {
+    pub(crate)fn new(&self, l: Lexer) -> Self {
         let p = Parser {
             lexer: l,
             current_token: Token { token_type: TokenType::Eof, literal: "".to_string(), line: 1 },

@@ -34,7 +34,7 @@ pub(crate) enum TokenType {
     Eof
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub(crate) struct Token {
     pub(crate) token_type: TokenType,
     pub(crate) literal: String,
