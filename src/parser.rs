@@ -53,7 +53,7 @@ impl<'a> Parser<'a> {
             let stmt = self.parse_statement();
 
             match stmt {
-                Ok(s) => program.stmts.push(s),
+                Ok(s) => program.stmts.push(Box::new(s)),
                 Err(e) => eprint!("{}", e),
             }
 
@@ -63,14 +63,14 @@ impl<'a> Parser<'a> {
         return program;
     }
 
-    fn parse_statement(&mut self) -> Result<Box<dyn Stmt>, &str> {
+    fn parse_statement(&mut self) -> Result<impl Stmt, &str> {
         match self.current_token.token_type {
             TokenType::Let => Ok(self.parse_let()?),
             _ => Err("error!"),
         }
     }
 
-    fn parse_let(&mut self) -> Result<Box<LetStmt>, &str> {
+    fn parse_let(&mut self) -> Result<LetStmt, &str> {
         let token = self.current_token.clone();
         if !self.expect_peek(TokenType::Ident) {
             return Err("error!");
@@ -87,7 +87,7 @@ impl<'a> Parser<'a> {
         }
 
         let stmt = LetStmt {token: token, name: name};
-        Ok(Box::new(stmt))
+        Ok(stmt)
     }
 }
 
@@ -110,16 +110,16 @@ mod tests {
         let program = p.parse();
 
         let exp: Vec<(&str, Box<dyn Any>)> = vec![
-            ("string", Box::new("string")),
-            ("num", Box::new(1)),
-            ("num2", Box::new(10.2)),
-            ("condition", Box::new(true)),
+            ("let name =", Box::new("string")),
+            ("let num =", Box::new(1)),
+            ("let num2 =", Box::new(10.2)),
+            ("let condition =", Box::new(true)),
         ];
 
         assert_eq!(program.stmts.len(), 4);
-        // for (i, e) in exp.iter().enumerate() {
-        //     let stmt = &program.stmts[i];
-        //     assert_eq!(e.0, &stmt.string())
-        // }
+        for (i, e) in exp.iter().enumerate() {
+            let stmt = &program.stmts[i];
+            assert_eq!(e.0, stmt.string());
+        }
     }
 }

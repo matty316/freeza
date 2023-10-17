@@ -33,7 +33,7 @@ impl Lexer {
         self.read_position += 1;
     }
 
-    fn skip_whitespace(& mut self) {
+    fn skip_whitespace(&mut self) {
         while self.ch == b' ' || self.ch == b'\r' || self.ch == b'\t' {
             self.read_char()
         }
