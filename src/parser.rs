@@ -86,6 +86,8 @@ impl<'a> Parser<'a> {
             self.next_token();
         }
 
+        //TODO: parse expr
+
         let stmt = LetStmt {token: token, name: name};
         Ok(stmt)
     }
