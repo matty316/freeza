@@ -2,116 +2,52 @@ use crate::token::*;
 use std::collections::HashMap;
 
 pub(crate)struct Lexer {
-    input: String
+    input: String,
+    position: usize,
+    read_position: usize,
+    ch: u8,
+    line: u32,
 }
 
 impl Lexer {
     pub(crate)fn new(input: String) -> Self {
-        let l = Lexer {
-            input: input
+        let mut l = Lexer {
+            input: input,
+            position: 0,
+            read_position: 0,
+            ch: b'\0',
+            line: 1,
         };
 
+        l.read_char();
         return l
     }
 
-    fn is_at_end(&self, position: usize) -> bool {
-        return position >= self.input.len();
-    }
-
-    fn read_char(&self, ch: &mut u8, position: &mut usize, read_position: &mut usize) {
-        if *read_position >= self.input.len() {
-            *ch = b'\0';
+    fn read_char(&mut self) {
+        if self.read_position >= self.input.len() {
+            self.ch = b'\0';
         } else {
-            *ch = self.input.as_bytes()[*read_position];
+            self.ch = self.input.as_bytes()[self.read_position];
         }
-        *position = *read_position;
-        *read_position += 1;
+        self.position = self.read_position;
+        self.read_position += 1;
     }
 
-    fn skip_whitespace(&self, ch: &mut u8, position: &mut usize, read_position: &mut usize) {
-        while *ch == b' ' || *ch == b'\t' || *ch == b'\r' {
-            self.read_char(ch, position, read_position)
+    fn skip_whitespace(& mut self) {
+        while self.ch == b' ' || self.ch == b'\r' || self.ch == b'\t' {
+            self.read_char()
         }
     }
 
-    pub(crate)fn next_token(&self, ch: &mut u8, position: &mut usize, read_position: &mut usize, line: &mut u32) -> Token {
-        let tok: Token;
+    fn read_ident(&mut self) -> Token {
+        
+        let start = self.position;
 
-        self.skip_whitespace(ch, position, read_position);
-
-        match ch {
-            b';' => tok = self.new_token(TokenType::Semicolon, *line),
-            b'(' => tok = self.new_token(TokenType::LParen, *line),
-            b')' => tok = self.new_token(TokenType::RParen, *line),
-            b',' => tok = self.new_token(TokenType::Comma, *line),
-            b':' => tok = self.new_token(TokenType::Colon, *line),
-            b'+' => tok = self.new_token(TokenType::Plus, *line),
-            b'-' => tok = self.new_token(TokenType::Minus, *line),
-            b'*' => tok = self.new_token(TokenType::Star, *line),
-            b'/' => tok = self.new_token(TokenType::Slash, *line),
-            b'<' => {
-                if self.peek(*position) == b'=' {
-                    self.read_char(ch, position, read_position);
-                    tok = self.new_token(TokenType::LtEq, *line);
-                } else {
-                    tok = self.new_token(TokenType::Lt, *line);
-                }
-            },
-            b'>' => {
-                if self.peek(*position) == b'=' {
-                    self.read_char(ch, position, read_position);
-                    tok = self.new_token(TokenType::GtEq, *line);
-                } else {
-                    tok = self.new_token(TokenType::Gt, *line);
-                }
-            },
-            b'=' => {
-                if self.peek(*position) == b'=' {
-                    self.read_char(ch, position, read_position);
-                    tok = self.new_token(TokenType::Eq, *line);
-                } else {
-                    tok = self.new_token(TokenType::Assign, *line);
-                }
-            },
-            b'!' => {
-                if self.peek(*position) == b'=' {
-                    self.read_char(ch, position, read_position);
-                    tok = self.new_token(TokenType::BangEq, *line);
-                } else {
-                    tok = self.new_token(TokenType::Bang, *line);
-                }
-            },
-            b'"' => {
-                tok = self.read_string(ch, position, read_position, *line);
-            }
-            b'\n' => {
-                tok = self.new_token(TokenType::NewLine, *line);
-                *line += 1;
-            },
-            b'\0' => tok = self.new_token(TokenType::Eof, *line),
-            _ => {
-                if is_alpha(*ch) {
-                    tok = self.read_ident(ch, position, read_position, *line);
-                    return tok;
-                } else if is_digit(*ch) {
-                    tok = self.read_num(ch, position, read_position, *line);
-                    return tok;
-                } else {
-                    tok = self.new_token(TokenType::Illegal, *line);
-                }
-            },
-        }
-        self.read_char(ch, position, read_position);
-        return tok;
-    }
-
-    fn read_ident(&self, ch: &mut u8, position: &mut usize, read_position: &mut usize, line: u32) -> Token {
-        let start = *position;
-        while is_alphanumeric(*ch) {
-            self.read_char(ch, position, read_position);
+        while is_alphanumeric(self.ch) {
+            self.read_char();
         }
 
-        let identifier = &self.input[start..*position];
+        let identifier = &self.input[start..self.position];
 
         let keywords = HashMap::from([
             ("let", TokenType::Let),
@@ -123,61 +59,134 @@ impl Lexer {
         ]);
 
         match keywords.get(identifier) {
-            Some(t) => return Token {token_type: t.clone(), literal: identifier.to_string(), line: line},
-            _ => return Token {token_type: TokenType::Ident, literal: identifier.to_string(), line: line},
+            Some(t) => return Token {token_type: t.clone(), literal: identifier.to_string(), line: self.line},
+            _ => return Token {token_type: TokenType::Ident, literal: identifier.to_string(), line: self.line},
         }
     }
 
-    fn read_num(&self, ch: &mut u8, position: &mut usize, read_position: &mut usize, line: u32) -> Token {
-        let start = *position;
-        while is_digit(*ch) {
-            self.read_char(ch, position, read_position);
+    fn read_num(&mut self) -> Token {
+        let start = self.position;
+        while is_digit(self.ch) {
+            self.read_char();
         }
 
-        if *ch == b'.' && is_digit(self.peek(*position)) {
-            self.read_char(ch, position, read_position);
-            while is_digit(*ch) {
-                self.read_char(ch, position, read_position);
+        if self.ch == b'.' && is_digit(self.peek()) {
+            self.read_char();
+            while is_digit(self.ch) {
+                self.read_char();
             }
         }
 
-        let n = &self.input[start..*position];
+        let n = &self.input[start..self.position];
 
         if n.as_bytes().contains(&b'.') {
-            Token {token_type: TokenType::Float, literal: n.to_string(), line: line}
+            Token {token_type: TokenType::Float, literal: n.to_string(), line: self.line}
         } else {
-            Token {token_type: TokenType::Int, literal: n.to_string(), line: line}
+            Token {token_type: TokenType::Int, literal: n.to_string(), line: self.line}
         }
     }
 
-    fn read_string(&self, ch: &mut u8, position: &mut usize, read_position: &mut usize, line: u32) -> Token {
-        self.read_char(ch, position, read_position);
+    fn read_string(&mut self) -> Token {
+        self.read_char();
+        let start = self.position;
 
-        let start = *position;
-
-        while self.peek(*position) != b'"' {
-            self.read_char(ch, position, read_position);
+        while self.peek() != b'"' {
+            self.read_char()
         }
-        self.read_char(ch, position, read_position);
+        self.read_char();
 
-        let s = &self.input[start..*position];
+        let s = &self.input[start..self.position];
 
-        Token{token_type: TokenType::String, literal: s.to_string(), line: line}
+        return Token{token_type: TokenType::String, literal: s.to_string(), line: self.line}
     }
 
-    fn peek(&self, position: usize) -> u8 {
-        if position + 1 >= self.input.len() {
+    fn peek(&self) -> u8 {
+        if self.read_position >= self.input.len() {
             return b'\0';
         } 
-        self.input.as_bytes()[position+1]
+        return self.input.as_bytes()[self.read_position]
     }
 
-    fn new_token(&self, token_type: TokenType, line: u32) -> Token {
+    fn new_token(&self, token_type: TokenType) -> Token {
         Token {
             token_type: token_type,
             literal: "".to_string(),
-            line: line,
+            line: self.line
         }
+    }
+
+    fn next_token(&mut self) -> Token {
+        let tok: Token;
+
+        self.skip_whitespace();
+
+        match self.ch {
+            b';' => tok = self.new_token(TokenType::Semicolon),
+            b'(' => tok = self.new_token(TokenType::LParen),
+            b')' => tok = self.new_token(TokenType::RParen),
+            b',' => tok = self.new_token(TokenType::Comma),
+            b':' => tok = self.new_token(TokenType::Colon),
+            b'+' => tok = self.new_token(TokenType::Plus),
+            b'-' => tok = self.new_token(TokenType::Minus),
+            b'*' => tok = self.new_token(TokenType::Star),
+            b'/' => tok = self.new_token(TokenType::Slash),
+            b'<' => {
+                if self.peek() == b'=' {
+                    self.read_char();
+                    tok = self.new_token(TokenType::LtEq);
+                } else {
+                    tok = self.new_token(TokenType::Lt);
+                }
+            },
+            b'>' => {
+                if self.peek() == b'=' {
+                    self.read_char();
+                    tok = self.new_token(TokenType::GtEq);
+                } else {
+                    tok = self.new_token(TokenType::Gt);
+                }
+            },
+            b'=' => {
+                if self.peek() == b'=' {
+                    self.read_char();
+                    tok = self.new_token(TokenType::Eq);
+                } else {
+                    tok = self.new_token(TokenType::Assign);
+                }
+            },
+            b'!' => {
+                if self.peek() == b'=' {
+                    self.read_char();
+                    tok = self.new_token(TokenType::BangEq);
+                } else {
+                    tok = self.new_token(TokenType::Bang);
+                }
+            },
+            b'"' => {
+                tok = self.read_string();
+                self.read_char();
+                return tok;
+            }
+            b'\n' => {
+                tok = self.new_token(TokenType::NewLine);
+                self.line += 1;
+            },
+            b'\0' => tok = self.new_token(TokenType::Eof),
+            _ => {
+                if is_alpha(self.ch) {
+                    tok = self.read_ident();
+                    return tok;
+                } else if is_digit(self.ch) {
+                    tok = self.read_num();
+                    return tok;
+                } else {
+                    tok = Token {token_type: TokenType::Illegal, literal: "".to_string(), line: self.line}
+                }
+            },
+        }
+
+        self.read_char();
+        tok
     }
 }
 
@@ -222,8 +231,6 @@ mod tests {
         end
 
         "###;
-
-        let l = Lexer::new(input.to_string());
 
         let expected = vec![
             Token {
@@ -677,14 +684,11 @@ mod tests {
                 line: 21,
             },
         ];
-        
-        let mut ch = input.as_bytes()[0];
-        let mut position = 0;
-        let mut read_position: usize = 1;
-        let mut line = 1;
-        
+
+        let mut l = Lexer::new(input.to_string());
+
         for (i, e) in expected.iter().enumerate() {
-            let t = l.next_token(&mut ch, &mut position, &mut read_position, &mut line);
+            let t = l.next_token();
             assert_eq!(e.token_type, t.token_type, "error position {} expected == {:?} got == {:?}", i, e, t);
             assert_eq!(e.literal, t.literal);
             assert_eq!(e.line, t.line)
