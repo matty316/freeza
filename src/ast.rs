@@ -33,16 +33,18 @@ impl Program {
 pub(crate) struct LetStmt {
     pub(crate) token: Token,
     pub(crate) name: Identifier,
-    pub(crate) value: dyn Expr,
+    // pub(crate) value: dyn Expr,
 }
 
 impl Node for LetStmt {
-    fn string(&self) -> String { format!("let {} = {}", self.name.string(), self.value.string())}
+    fn string(&self) -> String { format!("let {} =", self.name.string()/* , self.value.string()*/)}
 }
 
+impl Stmt for LetStmt {}
+
 pub(crate) struct Identifier {
-    token: Token,
-    value: String,
+    pub(crate) token: Token,
+    pub(crate) value: String,
 }
 
 impl Node for Identifier {
