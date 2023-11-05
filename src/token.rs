@@ -1,10 +1,8 @@
-use std::clone;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq)]
 pub(crate) enum TokenType {
     Ident,
-    Int,
-    Float,
+    Num,
     Comma,
     Plus,
     Minus,
@@ -30,13 +28,18 @@ pub(crate) enum TokenType {
     NewLine,
     Return,
     End,
+    For,
+    In,
+    True,
+    False,
+    Print,
     Illegal,
     Eof
 }
 
-#[derive(Debug, Clone)]
-pub(crate) struct Token {
+#[derive(Debug)]
+pub(crate) struct Token<'a> {
     pub(crate) token_type: TokenType,
-    pub(crate) literal: String,
-    pub(crate) line: u32,
+    pub(crate) lexeme: &'a str,
+    pub(crate) line: i32,
 }

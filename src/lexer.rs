@@ -1,198 +1,211 @@
-use crate::token::*;
-use std::collections::HashMap;
+use crate::token::{TokenType, Token};
+use crate::helpers::*;
 
-pub(crate)struct Lexer {
-    input: String
+pub(crate) struct Lexer<'a> {
+    source: &'a [u8],
+    start: usize,
+    current: usize,
+    line: i32,
 }
 
-impl Lexer {
-    pub(crate)fn new(input: String) -> Self {
-        let l = Lexer {
-            input: input
-        };
-
-        return l
-    }
-
-    fn is_at_end(&self, position: usize) -> bool {
-        return position >= self.input.len();
-    }
-
-    fn read_char(&self, ch: &mut u8, position: &mut usize, read_position: &mut usize) {
-        if *read_position >= self.input.len() {
-            *ch = b'\0';
-        } else {
-            *ch = self.input.as_bytes()[*read_position];
-        }
-        *position = *read_position;
-        *read_position += 1;
-    }
-
-    fn skip_whitespace(&self, ch: &mut u8, position: &mut usize, read_position: &mut usize) {
-        while *ch == b' ' || *ch == b'\t' || *ch == b'\r' {
-            self.read_char(ch, position, read_position)
+impl<'a> Lexer<'a> {
+    pub(crate) fn new(source: &'a str) -> Self {
+        Lexer {
+            source: source.as_bytes(),
+            start: 0,
+            current: 0,
+            line: 1,
         }
     }
 
-    pub(crate)fn next_token(&self, ch: &mut u8, position: &mut usize, read_position: &mut usize, line: &mut u32) -> Token {
-        let tok: Token;
+    pub(crate) fn next_token(&mut self) -> Token {
+        self.skip_whitespace();
+        self.start = self.current;
+        let c = self.advance();
+        if is_alpha(c) { return self.ident(); }
+        if is_digit(c) { return self.number(); }
 
-        self.skip_whitespace(ch, position, read_position);
-
-        match ch {
-            b';' => tok = self.new_token(TokenType::Semicolon, *line),
-            b'(' => tok = self.new_token(TokenType::LParen, *line),
-            b')' => tok = self.new_token(TokenType::RParen, *line),
-            b',' => tok = self.new_token(TokenType::Comma, *line),
-            b':' => tok = self.new_token(TokenType::Colon, *line),
-            b'+' => tok = self.new_token(TokenType::Plus, *line),
-            b'-' => tok = self.new_token(TokenType::Minus, *line),
-            b'*' => tok = self.new_token(TokenType::Star, *line),
-            b'/' => tok = self.new_token(TokenType::Slash, *line),
-            b'<' => {
-                if self.peek(*position) == b'=' {
-                    self.read_char(ch, position, read_position);
-                    tok = self.new_token(TokenType::LtEq, *line);
-                } else {
-                    tok = self.new_token(TokenType::Lt, *line);
-                }
-            },
-            b'>' => {
-                if self.peek(*position) == b'=' {
-                    self.read_char(ch, position, read_position);
-                    tok = self.new_token(TokenType::GtEq, *line);
-                } else {
-                    tok = self.new_token(TokenType::Gt, *line);
-                }
-            },
-            b'=' => {
-                if self.peek(*position) == b'=' {
-                    self.read_char(ch, position, read_position);
-                    tok = self.new_token(TokenType::Eq, *line);
-                } else {
-                    tok = self.new_token(TokenType::Assign, *line);
-                }
-            },
-            b'!' => {
-                if self.peek(*position) == b'=' {
-                    self.read_char(ch, position, read_position);
-                    tok = self.new_token(TokenType::BangEq, *line);
-                } else {
-                    tok = self.new_token(TokenType::Bang, *line);
-                }
-            },
-            b'"' => {
-                tok = self.read_string(ch, position, read_position, *line);
-            }
+        match c {
+            b'(' => return self.make_token(TokenType::LParen),
+            b')' => return self.make_token(TokenType::RParen),
+            b':' => return self.make_token(TokenType::Colon),
+            b',' => return self.make_token(TokenType::Comma),
+            b'+' => return self.make_token(TokenType::Plus),
+            b'-' => return self.make_token(TokenType::Minus),
+            b'*' => return self.make_token(TokenType::Star),
+            b';' => return self.make_token(TokenType::Semicolon),
             b'\n' => {
-                tok = self.new_token(TokenType::NewLine, *line);
-                *line += 1;
-            },
-            b'\0' => tok = self.new_token(TokenType::Eof, *line),
-            _ => {
-                if is_alpha(*ch) {
-                    tok = self.read_ident(ch, position, read_position, *line);
-                    return tok;
-                } else if is_digit(*ch) {
-                    tok = self.read_num(ch, position, read_position, *line);
-                    return tok;
+                self.line += 1;
+                return self.make_token(TokenType::NewLine);
+            }
+            b'=' => {
+                if self.peek() == b'=' {
+                    self.advance();
+                    return self.make_token(TokenType::Eq);
                 } else {
-                    tok = self.new_token(TokenType::Illegal, *line);
+                    return self.make_token(TokenType::Assign);
                 }
-            },
+            }
+            b'<' => {
+                if self.peek() == b'=' {
+                    self.advance();
+                    return self.make_token(TokenType::LtEq);
+                } else {
+                    return self.make_token(TokenType::Lt);
+                }
+            }
+            b'>' => {
+                if self.peek() == b'=' {
+                    self.advance();
+                    return self.make_token(TokenType::GtEq);
+                } else {
+                    return self.make_token(TokenType::Gt);
+                }
+            }
+            b'!' => {
+                if self.peek() == b'=' {
+                    self.advance();
+                    return self.make_token(TokenType::BangEq);
+                } else {
+                    return self.make_token(TokenType::Bang);
+                }
+            }
+            b'/' => {
+                if self.peek() == b'/' {
+                    while self.peek() != b'\n' { self.advance(); }
+                } else {
+                    return self.make_token(TokenType::Slash);
+                }
+            }
+            b'"' => return self.string(),
+            _ => (),
         }
-        self.read_char(ch, position, read_position);
-        return tok;
+
+        if self.is_at_end() { return self.make_token(TokenType::Eof); }
+
+        self.make_token(TokenType::Illegal)
     }
 
-    fn read_ident(&self, ch: &mut u8, position: &mut usize, read_position: &mut usize, line: u32) -> Token {
-        let start = *position;
-        while is_alphanumeric(*ch) {
-            self.read_char(ch, position, read_position);
-        }
-
-        let identifier = &self.input[start..*position];
-
-        let keywords = HashMap::from([
-            ("let", TokenType::Let),
-            ("fun", TokenType::Fun),
-            ("return", TokenType::Return),
-            ("end", TokenType::End),
-            ("if", TokenType::If),
-            ("else", TokenType::Else),
-        ]);
-
-        match keywords.get(identifier) {
-            Some(t) => return Token {token_type: t.clone(), literal: identifier.to_string(), line: line},
-            _ => return Token {token_type: TokenType::Ident, literal: identifier.to_string(), line: line},
-        }
-    }
-
-    fn read_num(&self, ch: &mut u8, position: &mut usize, read_position: &mut usize, line: u32) -> Token {
-        let start = *position;
-        while is_digit(*ch) {
-            self.read_char(ch, position, read_position);
-        }
-
-        if *ch == b'.' && is_digit(self.peek(*position)) {
-            self.read_char(ch, position, read_position);
-            while is_digit(*ch) {
-                self.read_char(ch, position, read_position);
+    //Helpers
+    fn skip_whitespace(&mut self) {
+        loop {
+            match self.peek() {
+                b' ' | b'\t' | b'\r' => { self.advance(); }
+                _ => return,
             }
         }
-
-        let n = &self.input[start..*position];
-
-        if n.as_bytes().contains(&b'.') {
-            Token {token_type: TokenType::Float, literal: n.to_string(), line: line}
-        } else {
-            Token {token_type: TokenType::Int, literal: n.to_string(), line: line}
-        }
     }
 
-    fn read_string(&self, ch: &mut u8, position: &mut usize, read_position: &mut usize, line: u32) -> Token {
-        self.read_char(ch, position, read_position);
-
-        let start = *position;
-
-        while self.peek(*position) != b'"' {
-            self.read_char(ch, position, read_position);
-        }
-        self.read_char(ch, position, read_position);
-
-        let s = &self.input[start..*position];
-
-        Token{token_type: TokenType::String, literal: s.to_string(), line: line}
+    fn is_at_end(&self) -> bool {
+        self.current >= self.source.len()
     }
 
-    fn peek(&self, position: usize) -> u8 {
-        if position + 1 >= self.input.len() {
-            return b'\0';
-        } 
-        self.input.as_bytes()[position+1]
+    fn advance(&mut self) -> u8 {
+        if self.is_at_end() { return b'\0' }
+        let c = self.source[self.current];
+        self.current += 1;
+        c
     }
 
-    fn new_token(&self, token_type: TokenType, line: u32) -> Token {
+    fn make_token(&self, token_type: TokenType) -> Token {
+        let lit = std::str::from_utf8(&self.source[self.start..self.current]);
         Token {
-            token_type: token_type,
-            literal: "".to_string(),
-            line: line,
+            token_type,
+            lexeme: lit.expect("cannot get literal val"),
+            line: self.line
         }
     }
-}
 
+    fn peek(&self) -> u8 {
+        if self.is_at_end() { return b'\0' }
+        self.source[self.current]
+    }
 
+    fn peek_next(&self) -> u8 {
+        if self.current + 1 >= self.source.len() { return b'\0' }
+        self.source[self.current + 1]
+    }
 
-fn is_alpha(ch: u8) -> bool {
-    b'a' <= ch && ch <= b'z' || b'A' <= ch && ch <= b'Z' || ch == b'_'
-}
+    fn ident(&mut self) -> Token {
+        while is_alpha(self.peek()) || is_digit(self.peek()) {
+            self.advance();
+        }
 
-fn is_digit(ch: u8) -> bool {
-    b'0' <= ch && ch <= b'9'
-}
+        self.lookup_keyword()
+    }
 
-fn is_alphanumeric(ch: u8) -> bool {
-    is_alpha(ch) || is_digit(ch)
+    fn lookup_keyword(&self) -> Token {
+        let c = &self.source[self.start];
+        match c {
+            b'l' => { return self.check_keyword("et", 1, 2, TokenType::Let); }
+            b'r' => { return self.check_keyword("eturn", 1, 5, TokenType::Return); }
+            b'i' => {
+                if self.current - self.start > 1 {
+                    match self.source[self.start + 1] {
+                        b'f' => { return self.make_token(TokenType::If); }
+                        b'n' => { return self.make_token(TokenType::In); }
+                        _ => (),
+                    }
+                }
+            }
+            b't' => { return self.check_keyword("rue", 1, 3, TokenType::True); }
+            b'p' => { return self.check_keyword("rint", 1, 4, TokenType::Print); }
+            b'e' => {
+                if self.current - self.start > 1 {
+                    match self.source[self.start + 1] {
+                        b'n' => { return self.check_keyword("d", 2, 1, TokenType::End); }
+                        b'l' => { return self.check_keyword("se", 2, 2, TokenType::Else); }
+                        _ => (),
+                    }
+                }
+            }
+            b'f' => {
+                if self.current - self.start > 1 {
+                    match self.source[self.start + 1] {
+                        b'u' => { return self.check_keyword("n", 2, 1, TokenType::Fun); }
+                        b'a' => { return self.check_keyword("lse", 2, 3, TokenType::False); }
+                        b'o' => { return self.check_keyword("r", 2, 1, TokenType::For); }
+                        _ => (),
+                    }
+                }
+            }
+            _ => (),
+        }
+
+        self.make_token(TokenType::Ident)
+    }
+
+    fn check_keyword(&self, rest: &str, start: usize, len: usize, token_type: TokenType) -> Token {
+        if self.current - self.start == start + len {
+            let slice = &self.source[self.start+start..self.start+start+len];
+            if rest.as_bytes() == slice {
+                return self.make_token(token_type);
+            }
+        }
+        self.make_token(TokenType::Ident)
+    }
+
+    fn number(&mut self) -> Token {
+        while is_digit(self.peek()) { self.advance(); }
+
+        if self.peek() == b'.' && is_digit(self.peek_next()) {
+            self.advance();
+            while is_digit(self.peek()) { self.advance(); }
+        }
+
+        self.make_token(TokenType::Num)
+    }
+
+    fn string(&mut self) -> Token {
+        while self.peek() != b'"' {
+            self.advance();
+            if self.peek() == b'\n' { self.line += 1; }
+        }
+
+        self.advance();
+        let string = std::str::from_utf8(&self.source[self.start+1..self.current-1]).expect("cannot get string");
+        Token {token_type: TokenType::String, lexeme: string, line: self.line}
+    }
 }
 
 #[cfg(test)]
@@ -201,7 +214,7 @@ mod tests {
 
     #[test]
     fn test_next_token() {
-        let input = r###"let num1 = 5
+        let input = r#"let num1 = 5
         let num2 = 10.5
 
         let string = "name"; let anotherString = "another name"
@@ -213,481 +226,514 @@ mod tests {
         let result = add(five, ten)
         !-/*<> <= >= == !=
 
-        if 5 < 10:
+        if true:
             return "if"
-        else if 6 > 5:
+        else if false:
             return "else if"
         else:
             return "else"
         end
 
-        "###;
+        for i in array:
+            print "free numba 9"
+        end
+        "#;
 
-        let l = Lexer::new(input.to_string());
+        let mut l = Lexer::new(input);
 
         let expected = vec![
             Token {
                 token_type: TokenType::Let,
-                literal: "let".to_string(),
+                lexeme: "let",
                 line: 1,
             },
             Token {
                 token_type: TokenType::Ident,
-                literal: "num1".to_string(),
+                lexeme: "num1",
                 line: 1,
             },
             Token {
                 token_type: TokenType::Assign,
-                literal: "".to_string(),
+                lexeme: "=",
                 line: 1,
             },
             Token {
-                token_type: TokenType::Int,
-                literal: "5".to_string(),
+                token_type: TokenType::Num,
+                lexeme: "5",
                 line: 1,
             },
             Token {
                 token_type: TokenType::NewLine,
-                literal: "".to_string(),
-                line: 1,
+                lexeme: "\n",
+                line: 2,
             },
             Token {
                 token_type: TokenType::Let,
-                literal: "let".to_string(),
+                lexeme: "let",
                 line: 2,
             },
             Token {
                 token_type: TokenType::Ident,
-                literal: "num2".to_string(),
+                lexeme: "num2",
                 line: 2,
             },
             Token {
                 token_type: TokenType::Assign,
-                literal: "".to_string(),
+                lexeme: "=",
                 line: 2,
             },
             Token {
-                token_type: TokenType::Float,
-                literal: "10.5".to_string(),
-                line: 2,
-            },
-            Token {
-                token_type: TokenType::NewLine,
-                literal: "".to_string(),
+                token_type: TokenType::Num,
+                lexeme: "10.5",
                 line: 2,
             },
             Token {
                 token_type: TokenType::NewLine,
-                literal: "".to_string(),
+                lexeme: "\n",
                 line: 3,
             },
             Token {
+                token_type: TokenType::NewLine,
+                lexeme: "\n",
+                line: 4,
+            },
+            Token {
                 token_type: TokenType::Let,
-                literal: "let".to_string(),
+                lexeme: "let",
                 line: 4,
             },
             Token {
                 token_type: TokenType::Ident,
-                literal: "string".to_string(),
+                lexeme: "string",
                 line: 4,
             },
             Token {
                 token_type: TokenType::Assign,
-                literal: "".to_string(),
+                lexeme: "=",
                 line: 4,
             },
             Token {
                 token_type: TokenType::String,
-                literal: "name".to_string(),
+                lexeme: "name",
                 line: 4,
             },
             Token {
                 token_type: TokenType::Semicolon,
-                literal: "".to_string(),
+                lexeme: ";",
                 line: 4,
             },
             Token {
                 token_type: TokenType::Let,
-                literal: "let".to_string(),
+                lexeme: "let",
                 line: 4,
             },
             Token {
                 token_type: TokenType::Ident,
-                literal: "anotherString".to_string(),
+                lexeme: "anotherString",
                 line: 4,
             },
             Token {
                 token_type: TokenType::Assign,
-                literal: "".to_string(),
+                lexeme: "=",
                 line: 4,
             },
             Token {
                 token_type: TokenType::String,
-                literal: "another name".to_string(),
+                lexeme: "another name",
                 line: 4,
             },
             Token {
                 token_type: TokenType::NewLine,
-                literal: "".to_string(),
-                line: 4,
-            },
-            Token {
-                token_type: TokenType::NewLine,
-                literal: "".to_string(),
+                lexeme: "\n",
                 line: 5,
             },
             Token {
+                token_type: TokenType::NewLine,
+                lexeme: "\n",
+                line: 6,
+            },
+            Token {
                 token_type: TokenType::Fun,
-                literal: "fun".to_string(),
+                lexeme: "fun",
                 line: 6,
             },
             Token {
                 token_type: TokenType::Ident,
-                literal: "add".to_string(),
+                lexeme: "add",
                 line: 6,
             },
             Token {
                 token_type: TokenType::LParen,
-                literal: "".to_string(),
+                lexeme: "(",
                 line: 6,
             },
             Token {
                 token_type: TokenType::Ident,
-                literal: "x".to_string(),
+                lexeme: "x",
                 line: 6,
             },
             Token {
                 token_type: TokenType::Comma,
-                literal: "".to_string(),
+                lexeme: ",",
                 line: 6,
             },
             Token {
                 token_type: TokenType::Ident,
-                literal: "y".to_string(),
+                lexeme: "y",
                 line: 6,
             },
             Token {
                 token_type: TokenType::RParen,
-                literal: "".to_string(),
+                lexeme: ")",
                 line: 6,
             },
             Token {
                 token_type: TokenType::Colon,
-                literal: "".to_string(),
+                lexeme: ":",
                 line: 6,
             },
             Token {
                 token_type: TokenType::NewLine,
-                literal: "".to_string(),
-                line: 6,
+                lexeme: "\n",
+                line: 7,
             },
             Token {
                 token_type: TokenType::Return,
-                literal: "return".to_string(),
+                lexeme: "return",
                 line: 7,
             },
             Token {
                 token_type: TokenType::Ident,
-                literal: "x".to_string(),
+                lexeme: "x",
                 line: 7,
             },
             Token {
                 token_type: TokenType::Plus,
-                literal: "".to_string(),
+                lexeme: "+",
                 line: 7,
             },
             Token {
                 token_type: TokenType::Ident,
-                literal: "y".to_string(),
+                lexeme: "y",
                 line: 7,
             },
             Token {
                 token_type: TokenType::NewLine,
-                literal: "".to_string(),
-                line: 7,
+                lexeme: "\n",
+                line: 8,
             },
             Token {
                 token_type: TokenType::End,
-                literal: "end".to_string(),
+                lexeme: "end",
                 line: 8,
             },
             Token {
                 token_type: TokenType::NewLine,
-                literal: "".to_string(),
-                line: 8,
-            },
-            Token {
-                token_type: TokenType::NewLine,
-                literal: "".to_string(),
+                lexeme: "\n",
                 line: 9,
             },
             Token {
+                token_type: TokenType::NewLine,
+                lexeme: "\n",
+                line: 10,
+            },
+            Token {
                 token_type: TokenType::Let,
-                literal: "let".to_string(),
+                lexeme: "let",
                 line: 10,
             },
             Token {
                 token_type: TokenType::Ident,
-                literal: "result".to_string(),
+                lexeme: "result",
                 line: 10,
             },
             Token {
                 token_type: TokenType::Assign,
-                literal: "".to_string(),
+                lexeme: "=",
                 line: 10,
             },
             Token {
                 token_type: TokenType::Ident,
-                literal: "add".to_string(),
+                lexeme: "add",
                 line: 10,
             },
             Token {
                 token_type: TokenType::LParen,
-                literal: "".to_string(),
+                lexeme: "(",
                 line: 10,
             },
             Token {
                 token_type: TokenType::Ident,
-                literal: "five".to_string(),
+                lexeme: "five",
                 line: 10,
             },
             Token {
                 token_type: TokenType::Comma,
-                literal: "".to_string(),
+                lexeme: ",",
                 line: 10,
             },
             Token {
                 token_type: TokenType::Ident,
-                literal: "ten".to_string(),
+                lexeme: "ten",
                 line: 10,
             },
             Token {
                 token_type: TokenType::RParen,
-                literal: "".to_string(),
+                lexeme: ")",
                 line: 10,
             },
             Token {
                 token_type: TokenType::NewLine,
-                literal: "".to_string(),
-                line: 10,
+                lexeme: "\n",
+                line: 11,
             },
             Token {
                 token_type: TokenType::Bang,
-                literal: "".to_string(),
+                lexeme: "!",
                 line: 11,
             },
             Token {
                 token_type: TokenType::Minus,
-                literal: "".to_string(),
+                lexeme: "-",
                 line: 11,
             },
             Token {
                 token_type: TokenType::Slash,
-                literal: "".to_string(),
+                lexeme: "/",
                 line: 11,
             },
             Token {
                 token_type: TokenType::Star,
-                literal: "".to_string(),
+                lexeme: "*",
                 line: 11,
             },
             Token {
                 token_type: TokenType::Lt,
-                literal: "".to_string(),
+                lexeme: "<",
                 line: 11,
             },
             Token {
                 token_type: TokenType::Gt,
-                literal: "".to_string(),
+                lexeme: ">",
                 line: 11,
             },
             Token {
                 token_type: TokenType::LtEq,
-                literal: "".to_string(),
+                lexeme: "<=",
                 line: 11,
             },
             Token {
                 token_type: TokenType::GtEq,
-                literal: "".to_string(),
+                lexeme: ">=",
                 line: 11,
             },
             Token {
                 token_type: TokenType::Eq,
-                literal: "".to_string(),
+                lexeme: "==",
                 line: 11,
             },
             Token {
                 token_type: TokenType::BangEq,
-                literal: "".to_string(),
+                lexeme: "!=",
                 line: 11,
             },
             Token {
                 token_type: TokenType::NewLine,
-                literal: "".to_string(),
-                line: 11,
-            },
-            Token {
-                token_type: TokenType::NewLine,
-                literal: "".to_string(),
+                lexeme: "\n",
                 line: 12,
             },
             Token {
+                token_type: TokenType::NewLine,
+                lexeme: "\n",
+                line: 13,
+            },
+            Token {
                 token_type: TokenType::If,
-                literal: "if".to_string(),
+                lexeme: "if",
                 line: 13,
             },
             Token {
-                token_type: TokenType::Int,
-                literal: "5".to_string(),
-                line: 13,
-            },
-            Token {
-                token_type: TokenType::Lt,
-                literal: "".to_string(),
-                line: 13,
-            },
-            Token {
-                token_type: TokenType::Int,
-                literal: "10".to_string(),
+                token_type: TokenType::True,
+                lexeme: "true",
                 line: 13,
             },
             Token {
                 token_type: TokenType::Colon,
-                literal: "".to_string(),
+                lexeme: ":",
                 line: 13,
             },
             Token {
                 token_type: TokenType::NewLine,
-                literal: "".to_string(),
-                line: 13,
+                lexeme: "\n",
+                line: 14,
             },
             Token {
                 token_type: TokenType::Return,
-                literal: "return".to_string(),
+                lexeme: "return",
                 line: 14,
             },
             Token {
                 token_type: TokenType::String,
-                literal: "if".to_string(),
+                lexeme: "if",
                 line: 14,
             },
             Token {
                 token_type: TokenType::NewLine,
-                literal: "".to_string(),
-                line: 14,
+                lexeme: "\n",
+                line: 15,
             },
             Token {
                 token_type: TokenType::Else,
-                literal: "else".to_string(),
+                lexeme: "else",
                 line: 15,
             },
             Token {
                 token_type: TokenType::If,
-                literal: "if".to_string(),
+                lexeme: "if",
                 line: 15,
             },
             Token {
-                token_type: TokenType::Int,
-                literal: "6".to_string(),
-                line: 15,
-            },
-            Token {
-                token_type: TokenType::Gt,
-                literal: "".to_string(),
-                line: 15,
-            },
-            Token {
-                token_type: TokenType::Int,
-                literal: "5".to_string(),
+                token_type: TokenType::False,
+                lexeme: "false",
                 line: 15,
             },
             Token {
                 token_type: TokenType::Colon,
-                literal: "".to_string(),
+                lexeme: ":",
                 line: 15,
             },
             Token {
                 token_type: TokenType::NewLine,
-                literal: "".to_string(),
-                line: 15,
+                lexeme: "\n",
+                line: 16,
             },
             Token {
                 token_type: TokenType::Return,
-                literal: "return".to_string(),
+                lexeme: "return",
                 line: 16,
             },
             Token {
                 token_type: TokenType::String,
-                literal: "else if".to_string(),
+                lexeme: "else if",
                 line: 16,
             },
             Token {
                 token_type: TokenType::NewLine,
-                literal: "".to_string(),
-                line: 16,
+                lexeme: "\n",
+                line: 17,
             },
             Token {
                 token_type: TokenType::Else,
-                literal: "else".to_string(),
+                lexeme: "else",
                 line: 17,
             },
             Token {
                 token_type: TokenType::Colon,
-                literal: "".to_string(),
+                lexeme: ":",
                 line: 17,
             },
             Token {
                 token_type: TokenType::NewLine,
-                literal: "".to_string(),
-                line: 17,
+                lexeme: "\n",
+                line: 18,
             },
             Token {
                 token_type: TokenType::Return,
-                literal: "return".to_string(),
+                lexeme: "return",
                 line: 18,
             },
             Token {
                 token_type: TokenType::String,
-                literal: "else".to_string(),
+                lexeme: "else",
                 line: 18,
             },
             Token {
                 token_type: TokenType::NewLine,
-                literal: "".to_string(),
-                line: 18,
+                lexeme: "\n",
+                line: 19,
             },
             Token {
                 token_type: TokenType::End,
-                literal: "end".to_string(),
+                lexeme: "end",
                 line: 19,
             },
             Token {
                 token_type: TokenType::NewLine,
-                literal: "".to_string(),
-                line: 19,
-            },
-            Token {
-                token_type: TokenType::NewLine,
-                literal: "".to_string(),
+                lexeme: "\n",
                 line: 20,
             },
             Token {
-                token_type: TokenType::Eof,
-                literal: "".to_string(),
+                token_type: TokenType::NewLine,
+                lexeme: "\n",
                 line: 21,
+            },
+            Token {
+                token_type: TokenType::For,
+                lexeme: "for",
+                line: 21,
+            },
+            Token {
+                token_type: TokenType::Ident,
+                lexeme: "i",
+                line: 21,
+            },
+            Token {
+                token_type: TokenType::In,
+                lexeme: "in",
+                line: 21,
+            },
+            Token {
+                token_type: TokenType::Ident,
+                lexeme: "array",
+                line: 21,
+            },
+            Token {
+                token_type: TokenType::Colon,
+                lexeme: ":",
+                line: 21,
+            },
+            Token {
+                token_type: TokenType::NewLine,
+                lexeme: "\n",
+                line: 22,
+            },
+            Token {
+                token_type: TokenType::Print,
+                lexeme: "print",
+                line: 22,
+            },
+            Token {
+                token_type: TokenType::String,
+                lexeme: "free numba 9",
+                line: 22,
+            },
+            Token {
+                token_type: TokenType::NewLine,
+                lexeme: "\n",
+                line: 23,
+            },
+            Token {
+                token_type: TokenType::End,
+                lexeme: "end",
+                line: 23,
+            },
+            Token {
+                token_type: TokenType::NewLine,
+                lexeme: "\n",
+                line: 24,
+            },
+            Token {
+                token_type: TokenType::Eof,
+                lexeme: "",
+                line: 24,
             },
         ];
         
-        let mut ch = input.as_bytes()[0];
-        let mut position = 0;
-        let mut read_position: usize = 1;
-        let mut line = 1;
-        
         for (i, e) in expected.iter().enumerate() {
-            let t = l.next_token(&mut ch, &mut position, &mut read_position, &mut line);
+            let t = l.next_token();
             assert_eq!(e.token_type, t.token_type, "error position {} expected == {:?} got == {:?}", i, e, t);
-            assert_eq!(e.literal, t.literal);
-            assert_eq!(e.line, t.line)
+            assert_eq!(e.lexeme, t.lexeme, "error position {} expected == {:?} got == {:?}", i, e, t);
+            assert_eq!(e.line, t.line, "error position {} expected == {:?} got == {:?}", i, e, t)
         }
     }
 }
