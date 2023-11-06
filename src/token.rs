@@ -1,55 +1,38 @@
 
-#[derive(Debug, PartialEq, Clone)]
-pub(crate) enum TokenType {
-    Ident,
-    Num,
-    Comma,
-    Plus,
-    Minus,
-    Star,
-    Slash,
-    Lt,
-    Gt,
-    LtEq,
-    GtEq,
-    Eq,
-    BangEq,
-    Bang,
-    Assign,
-    Let,
-    Fun,
-    If,
-    Else,
-    LParen,
-    RParen,
-    Colon,
-    Semicolon,
-    String,
-    NewLine,
-    Return,
-    End,
-    For,
-    In,
-    True,
-    False,
-    Print,
-    Illegal,
+#[derive(Debug, PartialEq)]
+pub(crate) enum Token {
+    Ident(usize, usize, i32),
+    Num(f64, i32),
+    Comma(i32),
+    Plus(i32),
+    Minus(i32),
+    Star(i32),
+    Slash(i32),
+    Lt(i32),
+    Gt(i32),
+    LtEq(i32),
+    GtEq(i32),
+    Eq(i32),
+    BangEq(i32),
+    Bang(i32),
+    Assign(i32),
+    Let(i32),
+    Fun(i32),
+    If(i32),
+    Else(i32),
+    LParen(i32),
+    RParen(i32),
+    Colon(i32),
+    Semicolon(i32),
+    String(usize, usize, i32),
+    NewLine(i32),
+    Return(i32),
+    End(i32),
+    For(i32),
+    In(i32),
+    True(i32),
+    False(i32),
+    Print(i32),
+    Illegal(i32),
     Eof
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct Token<'a> {
-    pub(crate) token_type: TokenType,
-    pub(crate) lexeme: &'a str,
-    pub(crate) line: i32,
-}
-
-impl<'a> Token<'a> {
-    pub(crate) fn new(token_type: TokenType, lexeme: &'a str, line: i32) -> Self {
-        Token {
-            token_type,
-            lexeme,
-            line,
-        }
-    }
 }
