@@ -1,5 +1,5 @@
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub(crate) enum TokenType {
     Ident,
     Num,
@@ -37,9 +37,19 @@ pub(crate) enum TokenType {
     Eof
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) struct Token<'a> {
     pub(crate) token_type: TokenType,
     pub(crate) lexeme: &'a str,
     pub(crate) line: i32,
+}
+
+impl<'a> Token<'a> {
+    pub(crate) fn new(token_type: TokenType, lexeme: &'a str, line: i32) -> Self {
+        Token {
+            token_type,
+            lexeme,
+            line,
+        }
+    }
 }
